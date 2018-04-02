@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <!--    <script src="js/Rcanvas/Rcanvas.js"></script>-->
+    <title>Document</title>
+    <style>
+        #main {
+            border: 1px solid black;
+        }
+
+        .dir {
+            height: 50px;
+            width: 50px;
+            font-size: 50px;
+            /*background-color: aqua;*/
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<div>
+    <div id="q" class="dir">q</div>
+    <div id="w" class="dir">w</div>
+    <div id="e" class="dir">e</div>
+    <br>
+    <div id="a" class="dir">a</div>
+    <div id="s" class="dir">s</div>
+    <div id="d" class="dir">d</div>
+    <div id="f" class="dir">F</div>
+    <div id="left" class="dir">L</div>
+    <div id="test" class="dir"></div>
+</div>
+<h1>wasd控制方向，q拉近，e拉远，鼠标控制方向</h1>
+<canvas id="main" width="1200" height="900"></canvas>
+</body>
+<script>
+    var test = document.getElementById('test');
+    var c = document.getElementById('main');
+    var ctx = c.getContext('2d');
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, 1200, 900);
+    var tml = 0;
+    var passx = 0;
+    var passy = 0;
+    var mousex = 0;
+    var mousey = 0;
+    var keyw = 0;   //是否按下W建
+    var keya = 0;
+    var keys = 0;
+    var keyd = 0;
+    var keyf = 0;
+    var keyq = 0;
+    var keye = 0;
+    var mouse_left = 0; //是否按下鼠标左键
+    var p = new Array();
+    var l = new Array();
+    var p_num = 8;
+    var l_num = 0;
+
+    // link()
+    function Point(a, b, c) {
+        this.x = a;
+        this.y = b;
+        this.z = c;
+    }
+
+    function Line(a, b) {
+        this.start = a;
+        this.end = b;
+    }
+
+
+    function Dir(a, b, c) {
+        this.x = a;
+        this.y = b;
+        this.z = c;
+        this.z_high = Math.atan2(c, Math.sqrt(b * b + a * a));
+        this.xy_rad = Math.atan2(b, a);
+        this.dealxyz = function () {
+            this.z = Math.sin(this.z_high);
+            this.x = Math.cos(this.z_high) * Math.cos(this.xy_rad);
+            this.y = Math.cos(this.z_high) * Math.sin(this.xy_rad);
+        }
+    }
+
+    function add_point(a, b, c) {
+        p[p_num] = new Point(a, b, c);
+        p_num++;
+    }
+
+    function add_line(a, b) {
+        l[l_num] = new Line(a, b);
+        l_num++;
+    }
+
+    function link(a, b) {
+        var x1 = p[a].x;
+        var y1 = p[a].y;
+        var z1 = p[a].z;
+        var x2 = p[b].x;
+        var y2 = p[b].y;
+        var z2 = p[b].z;
+        var lenth = 2 * Math.round(Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2) + (z1 - z2) * (z1 - z2)));
+        for (var i = 0; i < lenth; i++) {
+            var temp = new Point(x1 + (x2 - x1) / lenth * i, y1 + (y2 - y1) / lenth * i, z1 + (z2 - z1) / lenth * i);
+            point_draw(temp, 2);
+        }
+    }
+
+    function rotate(po, x, y, z, round, high) {
+        var temp_lenth = Math.sqrt((po.x - x) * (po.x - x) + (po.y - y) * (po.y - y) + (po.z - z) * (po.z - z));
+        var temp_dir = new Dir(po.x - x, po.y - y, po.z - z);
+        temp_dir.xy_rad += round;
+        temp_dir.xy_rad = rad_check_2PI(temp_dir.xy_rad);
+        temp_dir.z_high += high;
+        temp_dir.z_high = rad_check_z_PI(temp_dir.z_high);
+        temp_dir.dealxyz();
+        po.x = x + temp_lenth * temp_dir.x;
+        po.y = y + temp_lenth * temp_dir.y;
+        po.z = z + temp_lenth * temp_dir.z;
+        return po;
+    }
+
+    var me_pos = new Point(-50, -120, 50);
+    var me_dir = new Dir(0, 1, 0);
+    var me_dir_x = new Dir(1, 0, 0);
+    var me_dir_z = new Dir(0, 0, 1);
+    var me_pass_dir = new Dir(0, 1, 0);
+
+    function rad_check_2PI(tempa) {
+        var tempb = tempa;
+        if (tempb < 0) tempb += 2 * Math.PI;
+        if (tempb >= 2 * Math.PI) tempb -= 2 * Math.PI;
+        return tempb;
+    }
+
+    function rad_check_z_PI(tempa) {
+        var tempb = tempa;
+        if (tempb > Math.PI / 2) tempb = Math.PI - tempb;
+        if (tempb < Math.PI / -2) tempb = Math.PI + tempb;
+        return tempb;
+    }
+
+
+    function point_draw(po, rdo) {
+        var me_to_p1 = new Point(po.x - me_pos.x, po.y - me_pos.y, po.z - me_pos.z);
+        // me_to_p1.dealxyz();
+        var final_x = me_to_p1.x * me_dir_x.x + me_to_p1.y * me_dir_x.y + me_to_p1.z * me_dir_x.z;
+        var final_y = me_to_p1.x * me_dir.x + me_to_p1.y * me_dir.y + me_to_p1.z * me_dir.z;
+        var final_z = me_to_p1.x * me_dir_z.x + me_to_p1.y * me_dir_z.y + me_to_p1.z * me_dir_z.z;
+        var final_dir = new Dir(final_x, final_y, final_z);
+        final_dir.xy_rad = rad_check_2PI(final_dir.xy_rad);
+        final_dir.dealxyz();
+        if (final_dir.z_high < Math.PI / 4 && final_dir.z_high > Math.PI / -4) {
+
+            ect_y = 450 - final_dir.z_high * 450;
+            ect_x = (final_dir.xy_rad) * 660 / 1.5;
+            if(rdo>=8)
+            {
+                ctx.beginPath();
+                ctx.arc(ect_x,ect_y,rdo,0,2*Math.PI,0);
+                ctx.fillStyle='white';
+                ctx.fill();
+                ctx.closePath();
+            }
+            ctx.fillStyle = "white";
+            ctx.fillRect(ect_x - rdo / 2, ect_y - rdo / 2, rdo, rdo);
+        }
+    }
+
+    var draw = function () {
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, 1200, 900);
+        var ect_x, ect_y;
+        for (var i = 0; i < p_num; i++) {
+
+            if (i == 18) {
+                //var temprd=Math.sqrt((p[i].x - me_pos.x)*(p[i].x - me_pos.x)+(p[i].y - me_pos.y)*(p[i].y - me_pos.y)+(p[i].z - me_pos.z)*(p[i].z - me_pos.z));
+                point_draw(p[i], 20);
+                continue;
+            }
+            point_draw(p[i], 4);
+        }
+        for (var i = 0; i < l_num; i++) {
+            link(l[i].start, l[i].end);
+        }
+    };
+
+    function show(dir, pos) {
+        var zh = (dir.z_high);
+        var wid = dir.xy_rad;
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(pos, 100);
+        ctx.lineTo(pos + 30 * Math.cos(zh) * Math.cos(wid), 100 + 30 * Math.cos(zh) * Math.sin(wid));
+        ctx.closePath();
+        ctx.stroke();
+    }
+
+    var dir_change = function () {
+        if (mouse_left == 1) {
+            var change_x = mousex - passx;
+            var change_y = mousey - passy;
+            me_dir.z_high = me_pass_dir.z_high - change_y / 300;
+            me_dir.xy_rad = me_pass_dir.xy_rad + change_x / 300;
+
+            if (me_dir.z_high > Math.PI / 2)
+                me_dir.z_high = Math.PI / 2;
+            if (me_dir.z_high < -1 * Math.PI / 2)
+                me_dir.z_high = -1 * Math.PI / 2;
+            if (me_dir.xy_rad < 0) me_dir.xy_rad += 2 * Math.PI;
+            if (me_dir.xy_rad >= 2 * Math.PI) me_dir.xy_rad -= 2 * Math.PI;
+            me_dir.dealxyz();
+
+
+            me_dir_x.z_high = 0;
+            me_dir_x.xy_rad = me_dir.xy_rad - Math.PI / 2;
+            if (me_dir_x.xy_rad < 0) me_dir_x.xy_rad += 2 * Math.PI;
+            if (me_dir_x.xy_rad >= 2 * Math.PI) me_dir_x.xy_rad -= 2 * Math.PI;
+            me_dir_x.dealxyz();
+
+
+            me_dir_z.z_high = Math.PI / 2 - me_dir.z_high;
+
+            me_dir_z.xy_rad = me_dir.xy_rad - Math.PI;
+            if (me_dir_z.xy_rad < 0) me_dir_z.xy_rad += 2 * Math.PI;
+            if (me_dir_z.xy_rad >= 2 * Math.PI) me_dir_z.xy_rad -= 2 * Math.PI;
+            me_dir_z.dealxyz();
+
+            // test.innerText=me_dir_z.z;
+
+        }
+        // test.innerText=change_x+" "+change_y;
+        // test.innerText= me_dir.z_high+" "+me_dir.xy_rad;
+    };
+
+    var pos_change = function () {
+        if (keyq) {
+            me_pos.x += me_dir.x;
+            me_pos.y += me_dir.y;
+            me_pos.z += me_dir.z;
+        }
+        if (keye) {
+            me_pos.x -= me_dir.x;
+            me_pos.y -= me_dir.y;
+            me_pos.z -= me_dir.z;
+        }
+        if (keyw) {
+            me_pos.z += 1;
+        }
+        if (keys) {
+            me_pos.z -= 1;
+        }
+        if (keyd) {
+            me_pos.x -= Math.sin(me_dir.xy_rad);
+            me_pos.y += Math.cos(me_dir.xy_rad);
+        }
+        if (keya) {
+            me_pos.x += Math.sin(me_dir.xy_rad);
+            me_pos.y -= Math.cos(me_dir.xy_rad);
+        }
+    };
+
+    var init = function () {
+        //正方体
+        {
+            p[0] = new Point(10, 10, 10);
+            p[1] = new Point(-10, 10, 10);
+            p[2] = new Point(10, 10, -10);
+            p[3] = new Point(-10, 10, -10);
+            p[4] = new Point(10, -10, 10);
+            p[5] = new Point(-10, -10, 10);
+            p[6] = new Point(10, -10, -10);
+            p[7] = new Point(-10, -10, -10);
+            add_line(0, 1);
+            add_line(0, 2);
+            add_line(0, 4);
+            add_line(1, 3);
+            add_line(1, 5);
+            add_line(5, 4);
+            add_line(5, 7);
+            add_line(6, 7);
+            add_line(3, 7);
+            add_line(2, 6);
+            add_line(2, 3);
+            add_line(4, 6);
+        }
+
+        //
+        var pian_z = -30;
+        add_point(-30, 30, 0 + pian_z);
+        add_point(-30, -30, 0 + pian_z);
+        add_point(+30, -30, 0 + pian_z);
+        add_point(+30, 30, 0 + pian_z);
+        add_point(0, 0, 80 + pian_z);//12
+
+        for (var i = 8; i <= 11; i++) {
+            add_line(i + 1 > 11 ? 8 : i + 1, i);
+            add_line(i, 12);
+        }
+
+        var pian_z = -90;
+        add_point(-120, 30, 0);    //13
+        add_point(-120, -30, 0);
+        add_point(-60, -30, 0);
+        add_point(-60, 30, 0);
+        add_point(-90, 0, 120);
+        add_point(-90, 40, 50);        //18
+        for (var i = 13; i <= 16; i++) {
+            add_line(i + 1 > 16 ? 13 : i + 1, i);
+            add_line(i, 17);
+        }
+        add_line(17, 18);
+    };
+
+    var gui = function () {
+        if (keyq)
+            document.getElementById('q').style.backgroundColor = 'green';
+        else
+            document.getElementById('q').style.backgroundColor = 'white';
+        if (keye)
+            document.getElementById('e').style.backgroundColor = 'green';
+        else
+            document.getElementById('e').style.backgroundColor = 'white';
+        if (keya)
+            document.getElementById('a').style.backgroundColor = 'green';
+        else
+            document.getElementById('a').style.backgroundColor = 'white';
+        if (keyw)
+            document.getElementById('w').style.backgroundColor = 'green';
+        else
+            document.getElementById('w').style.backgroundColor = 'white';
+        if (keys)
+            document.getElementById('s').style.backgroundColor = 'green';
+        else
+            document.getElementById('s').style.backgroundColor = 'white';
+        if (keyd)
+            document.getElementById('d').style.backgroundColor = 'green';
+        else
+            document.getElementById('d').style.backgroundColor = 'white';
+        if (mouse_left)
+            document.getElementById('left').style.backgroundColor = 'green';
+        else
+            document.getElementById('left').style.backgroundColor = 'white';
+        if (keyf)
+            document.getElementById('f').style.backgroundColor = 'green';
+        else
+            document.getElementById('f').style.backgroundColor = 'white';
+
+    };
+
+    var speed = 0;
+
+    var anime = function () {
+        for (var i = 0; i < 8; i++) {
+            p[i] = rotate(p[i], 0, 0, 0, 0.05, 0);
+        }
+        var temp_dir = new Dir(90 - p[18].x, -p[18].y, 120 - p[18].z);
+        temp_dir.dealxyz();
+
+
+        if (tml == 0) {
+            if (p[18].y < 0)
+                speed += 0.2 * Math.cos(temp_dir.z_high);
+            else if (p[18].y > 0)
+                speed -= 0.2 * Math.cos(temp_dir.z_high);
+            p[18].y += temp_dir.z * speed;
+            p[18].z -= temp_dir.y * speed;
+        }
+        else {
+            if (p[18].y > 0)
+                speed += 0.2 * Math.cos(temp_dir.z_high);
+            else if (p[18].y < 0)
+                speed -= 0.2 * Math.cos(temp_dir.z_high);
+            p[18].y -= temp_dir.z * speed;
+            p[18].z += temp_dir.y * speed;
+        }
+
+
+        if (speed == 0)
+            tml = 1 - tml;
+
+
+    };
+
+    var pr = function () {
+
+        gui();      //显示此时操作
+        window.requestAnimationFrame(pr);
+
+        dir_change();
+        pos_change();
+        anime();
+        draw();
+
+    };
+
+    document.onkeydown = function (event) {
+        var e = e || event;
+//        console.log(e.keyCode);
+        var speed = 10;
+        if (e && e.keyCode == 87) { // 按 w
+            keyw = 1;
+        }
+        if (e && e.keyCode == 83) { // 按 s
+            keys = 1;
+        }
+        if (e && e.keyCode == 68) { // 按 d
+            keyd = 1;
+        }
+        if (e && e.keyCode == 65) { // 按 a
+            keya = 1;
+        }
+        if (e && e.keyCode == 70) { // 按 f
+            keyf = 1;
+        }
+        if (e && e.keyCode == 81) { // 按 q
+            keyq = 1;
+        }
+        if (e && e.keyCode == 69) { // 按 e
+            keye = 1;
+        }
+
+    };
+
+    document.onkeyup = function (event) {
+        var e = e || event;
+        if (e && e.keyCode == 87) { // 松开 w
+            keyw = 0;
+        }
+        if (e && e.keyCode == 83) { // 松开 s
+            keys = 0;
+        }
+        if (e && e.keyCode == 68) { // 松开 d
+            keyd = 0;
+        }
+        if (e && e.keyCode == 65) { // 松开 a
+            keya = 0;
+        }
+        if (e && e.keyCode == 70) { // 按 f
+            keyf = 0;
+        }
+        if (e && e.keyCode == 81) { // 按 q
+            keyq = 0;
+        }
+        if (e && e.keyCode == 69) { // 按 e
+            keye = 0;
+        }
+    };
+
+    document.onmousemove = function (e) {
+        e = e || window.event;
+        var rc = c.getBoundingClientRect();
+        mousex = Math.floor(e.clientX - rc.left);//获取鼠标在canvsa中的坐标
+        mousey = Math.floor(e.clientY - rc.top);
+//        console.log(me.dir);
+    };
+
+    document.onmousedown = function (e) {
+        mouse_left = 1;
+        passx = mousex;
+        passy = mousey;
+        me_pass_dir.xy_rad = me_dir.xy_rad;
+        me_pass_dir.z_high = me_dir.z_high;
+
+    };
+
+    document.onmouseup = function (e) {
+        mouse_left = 0;
+    };
+
+    init();
+
+    pr();
+</script>
+</html>
